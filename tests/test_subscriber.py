@@ -165,8 +165,34 @@ class TestPersister:
         p.init_mongodb()
         p.enable_collection_sharding('admin_notifications')
         mock_create_index.assert_called_once()
-        assert mock_command.call_count == 2
+        assert mock_command.call_count == 3
 
+    # Testing update ttl index
+
+    def test_find_ttl_db_value_raises_if_not_found_collection(self):
+        with pytest.raises(Exception):
+            p = Persister()
+            p.init_mongodb()
+            p._find_ttl_db_value("collection_name")
+
+    def test_find_ttl_db_value_raises_if_empty_collection_name(self):
+        with pytest.raises(Exception):
+            p = Persister()
+            p.init_mongodb()
+            p._find_ttl_db_value("")
+
+    def test_exec_update_ttl_raises_if_empty_list(self):
+        with pytest.raises(Exception):
+            p = Persister()
+            p.init_mongodb()
+            p._exec_update_ttl([])
+
+    def test_exec_update_ttl_raises_if_invalid_list(self):
+        with pytest.raises(Exception):
+            p = Persister()
+            p.init_mongodb()
+            p._exec_update_ttl(["", "collection_test", [], {}])
+   
 
 class TestLoggingInterface(unittest.TestCase):
 

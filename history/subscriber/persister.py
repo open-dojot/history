@@ -33,6 +33,8 @@ class Persister:
             self.db = self.client['device_history']
             if collection_name:
                 self.create_indexes(collection_name)
+            LOGGER.info("Checking update for ttl index ...")
+            self.check_update()
             LOGGER.info("db initialized")
         except Exception as error:
             LOGGER.warn("Could not init mongo db client: %s" % error)
@@ -240,6 +242,66 @@ class Persister:
             LOGGER.debug(
                 f"Notification should not be persisted. Discarding it.")
 
+    def check_update(self):
+        """
+            Checks if the database ttl value is the same as the configuration file.
+            If different, update.
+        """
+        has_any_collection = self.db.command("dbstats")['collections']
+        if has_any_collection:
+            collection_name = self.db.collection_names()[0]
+            db_current_value = self._find_ttl_db_value(collection_name)
+            conf_current_value = int(conf.db_expiration)
+            if db_current_value and db_current_value != conf_current_value:
+                collection_names = self.db.collection_names()
+                self._exec_update_ttl(collection_names)
+        return
+
+    def _find_ttl_db_value(self, collection_name):
+        """
+            Find the ttl value persisted in the database
+            :type collection_name: string
+            :param collection_name: A collection name
+            :return: returns database ttl value
+        """
+        index_name = 'ts_1'
+        ttl_key = 'expireAfterSeconds'
+        if not collection_name:
+            LOGGER.debug(f"Could not find the ttl value. (collection_name is empty)")
+            raise Exception
+        try:
+            index_info = self.db[collection_name].index_information()[index_name].items()
+            for key, value in index_info:
+                if key == ttl_key:
+                    return value
+        except Exception:
+            LOGGER.debug(f"Unable to retrieve index information for given collection name.")
+            raise Exception
+
+    def _exec_update_ttl(self, collection_names):
+        """
+            Updates ttl value in all collections for the requesting database
+            :type collection_names: list
+            :param collection_name: A list of device names
+        """
+        if not collection_names:
+            LOGGER.debug(f"List of collection names cannot be empty")
+            raise Exception(f"List of collection names cannot be empty")
+        for collection_name in collection_names:
+            try:
+                self.db.command({
+                    "collMod": collection_name,
+                    "index": {
+                        "keyPattern": {
+                            "ts": 1
+                        },
+                        "expireAfterSeconds": int(conf.db_expiration)
+                    }
+                })
+            except Exception as error:
+                LOGGER.debug(f"It was not possible to overwrite the ttl. \nError: {error}.")
+                raise Exception
+        LOGGER.info(f"The ttl value was successfully overwritten by {conf.db_expiration}.")
 
 class LoggingInterface(object):
     @staticmethod
