@@ -50,7 +50,7 @@ jobs:
       env:
         HISTORY_DB_ADDRESS: "localhost"
       run: |
-        docker run -d -p 27017:27017 mongo
+        docker run -d -p 27017:27017 mongo:5.0.12
         ./tests/start-test.sh
         python3 -m pytest --cov-report=html --cov=history tests/
         coverage run -m pytest tests && coverage xml
